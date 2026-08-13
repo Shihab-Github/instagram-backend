@@ -9,7 +9,9 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto) {
-    return this.prisma.user.create(createUserDto);
+    return this.prisma.user.create({
+      data: createUserDto
+    });
   }
 
   async findAll() {
@@ -20,16 +22,21 @@ export class UsersService {
 
   async findOne(id: number) {
     return this.prisma.user.findUnique({
-      where: { id },
+      where: { id: id.toString() },
       include: { posts: true }
     })
   }
 
-  // update(id: number, updateUserDto: UpdateUserDto) {
-  //   return `This action updates a #${id} user`;
-  // }
-  //
-  // remove(id: number) {
-  //   return `This action removes a #${id} user`;
-  // }
+  async update(id: number, updateUserDto: UpdateUserDto) {
+    return this.prisma.user.update({
+      where: { id: id.toString() },
+      data: updateUserDto
+    })
+  }
+
+  async remove(id: number) {
+    return this.prisma.user.delete({
+      where: { id: id.toString() },
+    });
+  }
 }
