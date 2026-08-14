@@ -1,15 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 
 @Injectable()
 export class PostsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
+  ) {}
 
   async create(createPostDto: CreatePostDto) {
     const { caption, imageUrl, authorId } = createPostDto;
-    return this.prisma.post.create({
+    const newPost = this.prisma.post.create({
       data: {
         caption,
         imageUrl,
@@ -18,10 +24,21 @@ export class PostsService {
         },
       },
     });
+
+    await this.cacheManager.del('all_posts_feed');
+    return newPost;
   }
 
   async findAll() {
-    return this.prisma.post.findMany({
+    const cacheKey = 'all_posts_feed';
+
+    const cachedPost = await this.cacheManager.get(cacheKey);
+    if (cachedPost) {
+      console.log('⚡ [REDIS CACHE HIT] Fetching feed from memory...');
+      return cachedPost;
+    }
+
+    const posts = this.prisma.post.findMany({
       include: {
         author: true,
       },
@@ -29,6 +46,9 @@ export class PostsService {
         createdAt: 'desc',
       },
     });
+
+    await this.cacheManager.set(cacheKey, posts, 60000);
+    return posts;
   }
 
   async findOne(id: string) {
@@ -48,10 +68,13 @@ export class PostsService {
   }
 
   async remove(id: string) {
-    return this.prisma.post.delete({
+    const deleted = this.prisma.post.delete({
       where: {
         id,
       },
     });
+
+    await this.cacheManager.del('all_posts_feed');
+    return deleted;
   }
 }
